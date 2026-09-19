@@ -9,7 +9,6 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/lucide@0.469.0/dist/umd/lucide.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <style>
   :root{
@@ -270,12 +269,14 @@
       </ul>
     </div>
     <div class="glass rounded-2xl p-6 text-center border">
-      <p class="text-sm font-semibold mb-3">Scan & Pay via UPI</p>
-      <div class="w-44 h-44 mx-auto rounded-xl grid place-items-center bg-white p-2" style="border:4px solid var(--card-border)">
-        <div id="qrcode-canvas"></div>
+      <div class="w-14 h-14 mx-auto rounded-2xl grid place-items-center mb-4" style="background:linear-gradient(135deg,var(--neon1),var(--neon2))"><i data-lucide="user-check" class="w-7 h-7 text-white"></i></div>
+      <p class="text-sm font-semibold mb-2">Pay Any Senior via UPI</p>
+      <p class="text-xs mb-4" style="color:var(--txt-dim)">Scan the UPI QR shown by any senior in person (PhonePe / GPay / Paytm), or ask them for their UPI ID directly.</p>
+      <div class="rounded-xl p-4 text-left space-y-2" style="background:var(--bg2)">
+        <p class="text-xs flex items-start gap-2"><i data-lucide="check-circle-2" class="w-4 h-4 shrink-0 mt-0.5" style="color:var(--neon2)"></i>Pay the fee to any senior via UPI</p>
+        <p class="text-xs flex items-start gap-2"><i data-lucide="check-circle-2" class="w-4 h-4 shrink-0 mt-0.5" style="color:var(--neon2)"></i>Take a screenshot of the successful payment</p>
+        <p class="text-xs flex items-start gap-2"><i data-lucide="check-circle-2" class="w-4 h-4 shrink-0 mt-0.5" style="color:var(--neon2)"></i>Upload that screenshot in the registration form below</p>
       </div>
-      <p class="text-xs mt-3 font-medium" id="upiIdDisplay" style="color:var(--)">UPI ID: notprovided@yco</p>
-      <p class="text-xs" style="color:var(--)">Scan with PhonePe / GPay / Paytm — then enter your Transaction ID in the registration form below</p>
     </div>
   </div>
 </section>
@@ -350,9 +351,14 @@
       </div>
 
       <div class="pt-4 border-t" style="border-color:var(--card-border)">
-        <p class="text-sm mb-3" style="color:var(--)">💰 Registration fee: <span id="feeDisplay2" class="font-semibold" style="color:var(--txt)">₹900 – ₹1000</span> (juniors only, see payment section above)</p>
-        <label class="text-sm font-medium block mb-1.5">Payment Transaction ID (if paid)</label>
-        <input id="f_txn" type="text" placeholder="e.g. UPI Ref / Txn ID" class="w-full rounded-xl px-4 py-3">
+        <p class="text-sm mb-3" style="color:var(--txt-dim)">💰 Registration fee: <span id="feeDisplay2" class="font-semibold" style="color:var(--txt)">₹900 – ₹1000</span> (juniors only) — pay any senior via UPI, then upload proof below</p>
+        <label class="text-sm font-medium block mb-1.5">Upload Payment Screenshot</label>
+        <input id="f_screenshot" type="file" accept="image/*" class="w-full rounded-xl px-4 py-3 text-sm">
+        <div id="screenshotPreviewWrap" class="hide mt-3">
+          <img id="screenshotPreview" class="h-32 rounded-lg border object-cover" style="border-color:var(--card-border)">
+          <button type="button" onclick="clearScreenshot()" class="text-xs mt-1 underline" style="color:var(--txt-dim)">Remove</button>
+        </div>
+        <p class="text-xs mt-2" style="color:var(--txt-dim)">The senior you paid will verify this screenshot from the admin dashboard.</p>
       </div>
     </div>
 
@@ -440,10 +446,7 @@
         <div><label class="text-xs block mb-1" style="color:var(--txt-dim)">Venue</label><input id="s_venue" type="text" class="w-full rounded-lg px-3 py-2 text-sm"></div>
         <div><label class="text-xs block mb-1" style="color:var(--txt-dim)">Time</label><input id="s_time" type="text" class="w-full rounded-lg px-3 py-2 text-sm"></div>
         <div><label class="text-xs block mb-1" style="color:var(--txt-dim)">Fee Range</label><input id="s_fee" type="text" class="w-full rounded-lg px-3 py-2 text-sm"></div>
-        <div><label class="text-xs block mb-1" style="color:var(--txt-dim)">UPI ID (VPA)</label><input id="s_upi" type="text" placeholder="e.g. 8707052473@ybl" class="w-full rounded-lg px-3 py-2 text-sm"></div>
-        <div><label class="text-xs block mb-1" style="color:var(--txt-dim)">Payee Name</label><input id="s_payee" type="text" class="w-full rounded-lg px-3 py-2 text-sm"></div>
       </div>
-      <p class="text-xs mt-3" style="color:var(--txt-dim)">💡 Not sure of your UPI handle? Open PhonePe/GPay → Profile → "My UPI ID" to find the exact one (e.g. @ybl, @paytm, @okaxis, @ibl).</p>
       <button onclick="saveSettings()" class="btn-primary text-white text-sm font-semibold px-6 py-2.5 rounded-full mt-4">Save Changes</button>
     </div>
 
@@ -459,7 +462,7 @@
     <div class="glass rounded-2xl overflow-x-auto">
       <table class="w-full text-sm">
         <thead><tr class="text-left" style="color:var(--txt-dim); border-bottom:1px solid var(--card-border)">
-          <th class="p-3">Name</th><th class="p-3">Roll No</th><th class="p-3">Section</th><th class="p-3">Attending</th><th class="p-3">Phone</th><th class="p-3">Performances</th><th class="p-3">Suggestions</th><th class="p-3">Txn ID</th><th class="p-3">Payment</th>
+          <th class="p-3">Name</th><th class="p-3">Roll No</th><th class="p-3">Section</th><th class="p-3">Attending</th><th class="p-3">Phone</th><th class="p-3">Performances</th><th class="p-3">Suggestions</th><th class="p-3">Payment Proof</th><th class="p-3">Payment</th>
         </tr></thead>
         <tbody id="tableBody"></tbody>
       </table>
@@ -494,7 +497,7 @@ const io = new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting)e.tar
 document.querySelectorAll('.reveal').forEach(el=>io.observe(el));
 
 /* ---------- SETTINGS (persisted) ---------- */
-const DEFAULT_SETTINGS = { date:'Tentative: Oct – Nov 2026', venue:'Tentative: A Club/Hall in Lucknow', time:'12:00 PM – 8:00 PM', fee:'₹900 – ₹1000', upiId:'8707052473@ybl', payeeName:'AI Fresher 2026' };
+const DEFAULT_SETTINGS = { date:'Tentative: Oct – Nov 2026', venue:'Tentative: A Club/Hall in Lucknow', time:'12:00 PM – 8:00 PM', fee:'₹900 – ₹1000' };
 function getSettings(){
   try{ return {...DEFAULT_SETTINGS, ...JSON.parse(localStorage.getItem('af26_settings')||'{}')}; }catch(e){ return DEFAULT_SETTINGS; }
 }
@@ -509,30 +512,16 @@ function applySettings(){
   document.getElementById('s_venue').value=s.venue;
   document.getElementById('s_time').value=s.time;
   document.getElementById('s_fee').value=s.fee;
-  document.getElementById('s_upi').value=s.upiId;
-  document.getElementById('s_payee').value=s.payeeName;
-  document.getElementById('upiIdDisplay').textContent='UPI ID: '+s.upiId;
-  renderQR(s);
 }
 applySettings();
 function saveSettings(){
   const s={
     date:document.getElementById('s_date').value, venue:document.getElementById('s_venue').value,
-    time:document.getElementById('s_time').value, fee:document.getElementById('s_fee').value,
-    upiId:document.getElementById('s_upi').value, payeeName:document.getElementById('s_payee').value
+    time:document.getElementById('s_time').value, fee:document.getElementById('s_fee').value
   };
   localStorage.setItem('af26_settings', JSON.stringify(s));
   applySettings();
   showToast('✅ Event settings updated');
-}
-function renderQR(s){
-  const el = document.getElementById('qrcode-canvas');
-  if(!el) return;
-  el.innerHTML = '';
-  const upiLink = `upi://pay?pa=${encodeURIComponent(s.upiId)}{encodeURIComponent(s.payeeName)}${encodeURIComponent('AI Fresher 2026 Registration')}`;
-  try{
-    new QRCode(el, { text: upiLink, width: 160, height: 160, colorDark:'#000000', colorLight:'#ffffff', correctLevel: QRCode.CorrectLevel.M });
-  }catch(e){ el.innerHTML = '<p class="text-xs text-black p-4">QR unavailable — pay directly to '+s.upiId+'</p>'; }
 }
 
 /* ---------- COUNTDOWN (targets ~Oct 15 2026 as placeholder tentative date) ---------- */
@@ -641,6 +630,37 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 let sb = null;
 try{ sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY); }catch(e){ console.warn('Supabase client failed to init', e); }
 
+/* ---------- PAYMENT SCREENSHOT (compressed to a small base64 image before saving) ---------- */
+let paymentScreenshotBase64 = '';
+document.getElementById('f_screenshot').addEventListener('change', function(e){
+  const file = e.target.files[0];
+  if(!file){ return; }
+  if(!file.type.startsWith('image/')){ showToast('⚠️ Please upload an image file'); this.value=''; return; }
+  const reader = new FileReader();
+  reader.onload = function(ev){
+    const img = new Image();
+    img.onload = function(){
+      const maxW = 700;
+      const scale = Math.min(1, maxW / img.width);
+      const canvas = document.createElement('canvas');
+      canvas.width = img.width * scale;
+      canvas.height = img.height * scale;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      paymentScreenshotBase64 = canvas.toDataURL('image/jpeg', 0.6);
+      document.getElementById('screenshotPreview').src = paymentScreenshotBase64;
+      document.getElementById('screenshotPreviewWrap').classList.remove('hide');
+    };
+    img.src = ev.target.result;
+  };
+  reader.readAsDataURL(file);
+});
+function clearScreenshot(){
+  paymentScreenshotBase64 = '';
+  document.getElementById('f_screenshot').value = '';
+  document.getElementById('screenshotPreviewWrap').classList.add('hide');
+}
+
 function loadRegsLocal(){ try{ return JSON.parse(localStorage.getItem('af26_registrations')||'[]'); }catch(e){ return []; } }
 function saveRegsLocal(regs){ localStorage.setItem('af26_registrations', JSON.stringify(regs)); }
 
@@ -654,7 +674,7 @@ async function fetchRegistrations(){
       const normalized = data.map(r=>({
         id: r.id, attending: r.attending, name: r.name||'', roll: r.roll||'', section: r.section||'',
         phone: r.phone||'', whatsapp: r.whatsapp||'', performances: r.performances? r.performances.split(',').map(s=>s.trim()).filter(Boolean) : [],
-        ideas: r.ideas||'', txnId: r.txn_id||'', paymentVerified: !!r.payment_verified, submittedAt: r.submitted_at
+        ideas: r.ideas||'', paymentScreenshot: r.payment_screenshot||'', paymentVerified: !!r.payment_verified, submittedAt: r.submitted_at
       }));
       saveRegsLocal(normalized); // keep an offline mirror
       return normalized;
@@ -674,7 +694,7 @@ async function insertRegistration(entry){
     const { error } = await sb.from('registrations').insert([{
       attending: entry.attending, name: entry.name, roll: entry.roll, section: entry.section,
       phone: entry.phone, whatsapp: entry.whatsapp, performances: entry.performances.join(', '),
-      ideas: entry.ideas, txn_id: entry.txnId, payment_verified: false
+      ideas: entry.ideas, payment_screenshot: entry.paymentScreenshot, payment_verified: false
     }]);
     if(error){ console.error('Supabase insert failed', error); return false; }
     return true;
@@ -704,7 +724,7 @@ document.getElementById('regForm').addEventListener('submit', async function(e){
     whatsapp: attending? document.getElementById('f_whatsapp').value.trim() : '',
     performances: attending? [...selectedPerf] : [],
     ideas: attending? document.getElementById('f_ideas').value.trim() : '',
-    txnId: attending? document.getElementById('f_txn').value.trim() : '',
+    paymentScreenshot: attending? paymentScreenshotBase64 : '',
     paymentVerified: false,
     submittedAt: new Date().toISOString()
   };
@@ -768,7 +788,7 @@ function renderStats(){
   const no = regs.filter(r=>r.attending===false);
   const settings = getSettings();
   const feeNum = parseInt((settings.fee.match(/\d+/g)||[900]).pop()) || 0;
-  const paidCount = yes.filter(r=>r.txnId).length;
+  const paidCount = yes.filter(r=>r.paymentScreenshot).length;
   document.getElementById('stat-yes').textContent = yes.length;
   document.getElementById('stat-no').textContent = no.length;
   document.getElementById('stat-collection').textContent = '₹'+(paidCount*feeNum).toLocaleString('en-IN');
@@ -799,7 +819,7 @@ function renderTable(){
       <td class="p-3">${escapeHtml(r.phone)}</td>
       <td class="p-3">${r.performances.map(p=>`<span class="text-xs px-1.5 py-0.5 rounded mr-1" style="background:var(--bg2)">${p}</span>`).join('')||'—'}</td>
       <td class="p-3 max-w-[160px] truncate" title="${escapeHtml(r.ideas)}">${escapeHtml(r.ideas)||'—'}</td>
-      <td class="p-3">${escapeHtml(r.txnId)||'—'}</td>
+      <td class="p-3">${r.paymentScreenshot? `<a href="${r.paymentScreenshot}" target="_blank"><img src="${r.paymentScreenshot}" class="h-12 w-12 object-cover rounded-lg border" style="border-color:var(--card-border)"></a>` : '—'}</td>
       <td class="p-3"><button onclick="togglePaid('${r.id}')" class="px-2 py-1 rounded-full text-xs font-semibold" style="background:${r.paymentVerified?'color-mix(in srgb, #10b981 25%, transparent)':'color-mix(in srgb, #f59e0b 25%, transparent)'}">${r.paymentVerified?'✅ Verified':'⏳ Pending'}</button></td>
     </tr>`).join('');
 }
@@ -817,8 +837,8 @@ function escapeHtml(str){ return (str||'').toString().replace(/[&<>"']/g, m=>({'
 function exportCSV(){
   const regs = cachedRegs.filter(r=>r.attending===true);
   if(!regs.length){ showToast('⚠️ No data to export'); return; }
-  const headers = ['Name','Roll No','Section','Phone','WhatsApp','Performances','Ideas/Suggestions','Transaction ID','Payment Verified','Submitted At'];
-  const rows = regs.map(r=>[r.name,r.roll,r.section,r.phone,r.whatsapp,r.performances.join('; '),r.ideas,r.txnId,r.paymentVerified?'Yes':'No',r.submittedAt]);
+  const headers = ['Name','Roll No','Section','Phone','WhatsApp','Performances','Ideas/Suggestions','Screenshot Uploaded','Payment Verified','Submitted At'];
+  const rows = regs.map(r=>[r.name,r.roll,r.section,r.phone,r.whatsapp,r.performances.join('; '),r.ideas,r.paymentScreenshot?'Yes':'No',r.paymentVerified?'Yes':'No',r.submittedAt]);
   const csv = [headers, ...rows].map(row=>row.map(v=>`"${(v||'').toString().replace(/"/g,'""')}"`).join(',')).join('\n');
   const blob = new Blob([csv],{type:'text/csv'});
   const url = URL.createObjectURL(blob);
