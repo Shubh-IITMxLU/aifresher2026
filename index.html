@@ -10,6 +10,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/lucide@0.469.0/dist/umd/lucide.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <style>
   :root{
     --bg:#05050a; --bg2:#0a0a16; --card:#11111f; --card-border:#23233a;
@@ -417,6 +418,7 @@
         <p class="text-xs" style="color:var(--txt-dim)">Session ID: <span id="sessionId"></span> • Manage AI Fresher 2026</p>
       </div>
       <div class="flex gap-2">
+        <button onclick="refreshDashboard()" id="refreshBtn" class="btn-ghost px-4 py-2 rounded-full text-sm flex items-center gap-2"><i data-lucide="refresh-cw" class="w-4 h-4"></i>Refresh</button>
         <button onclick="exportCSV()" class="btn-ghost px-4 py-2 rounded-full text-sm flex items-center gap-2"><i data-lucide="download" class="w-4 h-4"></i>Export CSV</button>
         <button onclick="closeAdminDash()" class="btn-ghost px-4 py-2 rounded-full text-sm flex items-center gap-2"><i data-lucide="log-out" class="w-4 h-4"></i>Logout</button>
       </div>
@@ -633,14 +635,65 @@ function setAttend(val){
   document.getElementById('fullFormFields').classList.toggle('hide', val!==true);
 }
 
-function loadRegs(){ try{ return JSON.parse(localStorage.getItem('af26_registrations')||'[]'); }catch(e){ return []; } }
-function saveRegs(regs){ localStorage.setItem('af26_registrations', JSON.stringify(regs)); }
+/* ---------- SUPABASE CONNECTION ---------- */
+const SUPABASE_URL = 'https://wjdwceayrqcfaciypyim.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndqZHdjZWF5cnFjZmFjaXlweWltIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk4MTEyMTAsImV4cCI6MjEwNTM4NzIxMH0.ZeHpouLfL2gq-3ulJLld85iah-LYDCiQlS0ciXk1ikQ';
+let sb = null;
+try{ sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY); }catch(e){ console.warn('Supabase client failed to init', e); }
 
-document.getElementById('regForm').addEventListener('submit', function(e){
+function loadRegsLocal(){ try{ return JSON.parse(localStorage.getItem('af26_registrations')||'[]'); }catch(e){ return []; } }
+function saveRegsLocal(regs){ localStorage.setItem('af26_registrations', JSON.stringify(regs)); }
+
+// Fetches all registrations from Supabase (source of truth across every device).
+// Falls back to this device's local cache if the network/DB call fails.
+async function fetchRegistrations(){
+  if(sb){
+    try{
+      const { data, error } = await sb.from('registrations').select('*').order('submitted_at', { ascending:false });
+      if(error) throw error;
+      const normalized = data.map(r=>({
+        id: r.id, attending: r.attending, name: r.name||'', roll: r.roll||'', section: r.section||'',
+        phone: r.phone||'', whatsapp: r.whatsapp||'', performances: r.performances? r.performances.split(',').map(s=>s.trim()).filter(Boolean) : [],
+        ideas: r.ideas||'', txnId: r.txn_id||'', paymentVerified: !!r.payment_verified, submittedAt: r.submitted_at
+      }));
+      saveRegsLocal(normalized); // keep an offline mirror
+      return normalized;
+    }catch(e){
+      console.warn('Supabase fetch failed, using local cache', e);
+      showToast('⚠️ Could not reach database, showing local cache');
+      return loadRegsLocal();
+    }
+  }
+  return loadRegsLocal();
+}
+
+// Inserts one registration into Supabase; also mirrors to local cache immediately for a snappy UI.
+async function insertRegistration(entry){
+  const local = loadRegsLocal(); local.push(entry); saveRegsLocal(local);
+  if(sb){
+    const { error } = await sb.from('registrations').insert([{
+      attending: entry.attending, name: entry.name, roll: entry.roll, section: entry.section,
+      phone: entry.phone, whatsapp: entry.whatsapp, performances: entry.performances.join(', '),
+      ideas: entry.ideas, txn_id: entry.txnId, payment_verified: false
+    }]);
+    if(error){ console.error('Supabase insert failed', error); return false; }
+    return true;
+  }
+  return false;
+}
+
+async function updatePaymentStatus(id, verified){
+  if(sb){
+    const { error } = await sb.from('registrations').update({ payment_verified: verified }).eq('id', id);
+    if(error){ console.error('Supabase update failed', error); showToast('⚠️ Could not update — check connection'); return false; }
+  }
+  return true;
+}
+
+document.getElementById('regForm').addEventListener('submit', async function(e){
   e.preventDefault();
   if(attending===null){ showToast('⚠️ Please select if you are attending'); return; }
 
-  const regs = loadRegs();
   const entry = {
     id: 'REG-'+Date.now(),
     attending: attending,
@@ -660,12 +713,15 @@ document.getElementById('regForm').addEventListener('submit', function(e){
     showToast('⚠️ Please fill all required fields'); return;
   }
 
-  regs.push(entry);
-  saveRegs(regs);
+  const submitBtn = this.querySelector('button[type="submit"]');
+  submitBtn.disabled = true; submitBtn.style.opacity='0.6';
+  const ok = await insertRegistration(entry);
+  submitBtn.disabled = false; submitBtn.style.opacity='1';
+
   document.getElementById('regForm').classList.add('hide');
   document.getElementById('successCard').classList.remove('hide');
   document.getElementById('successCard').classList.add('show');
-  showToast('🎉 Registration submitted successfully!');
+  showToast(ok? '🎉 Registration submitted successfully!' : '🎉 Saved on this device — will sync once online');
 });
 
 /* ---------- TOAST ---------- */
@@ -689,7 +745,7 @@ function adminLogin(){
     document.getElementById('sessionId').textContent = sid;
     closeAdmin();
     document.getElementById('adminDash').classList.remove('hide');
-    renderTable(); renderStats();
+    refreshDashboard();
     lucide.createIcons();
   } else {
     document.getElementById('adminError').classList.remove('hide');
@@ -697,8 +753,17 @@ function adminLogin(){
 }
 function closeAdminDash(){ sessionStorage.removeItem('af26_admin_session'); document.getElementById('adminDash').classList.add('hide'); }
 
+let cachedRegs = [];
+async function refreshDashboard(){
+  const btn = document.getElementById('refreshBtn');
+  if(btn){ btn.disabled=true; btn.style.opacity='0.6'; }
+  cachedRegs = await fetchRegistrations();
+  renderStats(); renderTable();
+  if(btn){ btn.disabled=false; btn.style.opacity='1'; }
+}
+
 function renderStats(){
-  const regs = loadRegs();
+  const regs = cachedRegs;
   const yes = regs.filter(r=>r.attending===true);
   const no = regs.filter(r=>r.attending===false);
   const settings = getSettings();
@@ -713,7 +778,7 @@ function renderStats(){
 }
 
 function renderTable(){
-  const regs = loadRegs().filter(r=>r.attending===true);
+  const regs = cachedRegs.filter(r=>r.attending===true);
   const q = (document.getElementById('searchBox').value||'').toLowerCase();
   const secF = document.getElementById('filterSection').value;
   const perfF = document.getElementById('filterPerf').value;
@@ -737,17 +802,20 @@ function renderTable(){
       <td class="p-3">${escapeHtml(r.txnId)||'—'}</td>
       <td class="p-3"><button onclick="togglePaid('${r.id}')" class="px-2 py-1 rounded-full text-xs font-semibold" style="background:${r.paymentVerified?'color-mix(in srgb, #10b981 25%, transparent)':'color-mix(in srgb, #f59e0b 25%, transparent)'}">${r.paymentVerified?'✅ Verified':'⏳ Pending'}</button></td>
     </tr>`).join('');
-  renderStats();
 }
-function togglePaid(id){
-  const regs = loadRegs();
-  const idx = regs.findIndex(r=>r.id===id);
-  if(idx>-1){ regs[idx].paymentVerified = !regs[idx].paymentVerified; saveRegs(regs); renderTable(); }
+async function togglePaid(id){
+  const idx = cachedRegs.findIndex(r=>r.id===id);
+  if(idx>-1){
+    const newVal = !cachedRegs[idx].paymentVerified;
+    cachedRegs[idx].paymentVerified = newVal; // optimistic UI update
+    renderTable();
+    await updatePaymentStatus(id, newVal);
+  }
 }
 function escapeHtml(str){ return (str||'').toString().replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
 
 function exportCSV(){
-  const regs = loadRegs().filter(r=>r.attending===true);
+  const regs = cachedRegs.filter(r=>r.attending===true);
   if(!regs.length){ showToast('⚠️ No data to export'); return; }
   const headers = ['Name','Roll No','Section','Phone','WhatsApp','Performances','Ideas/Suggestions','Transaction ID','Payment Verified','Submitted At'];
   const rows = regs.map(r=>[r.name,r.roll,r.section,r.phone,r.whatsapp,r.performances.join('; '),r.ideas,r.txnId,r.paymentVerified?'Yes':'No',r.submittedAt]);
