@@ -274,8 +274,8 @@
       <div class="w-44 h-44 mx-auto rounded-xl grid place-items-center bg-white p-2" style="border:4px solid var(--card-border)">
         <div id="qrcode-canvas"></div>
       </div>
-      <p class="text-xs mt-3 font-medium" id="upiIdDisplay" style="color:var(--txt)">UPI ID: notprovided@yco</p>
-      <p class="text-xs" style="color:var(--txt-dim)">Scan with PhonePe / GPay / Paytm — then enter your Transaction ID in the registration form below</p>
+      <p class="text-xs mt-3 font-medium" id="upiIdDisplay" style="color:var(--)">UPI ID: notprovided@yco</p>
+      <p class="text-xs" style="color:var(--)">Scan with PhonePe / GPay / Paytm — then enter your Transaction ID in the registration form below</p>
     </div>
   </div>
 </section>
@@ -350,7 +350,7 @@
       </div>
 
       <div class="pt-4 border-t" style="border-color:var(--card-border)">
-        <p class="text-sm mb-3" style="color:var(--txt-dim)">💰 Registration fee: <span id="feeDisplay2" class="font-semibold" style="color:var(--txt)">₹900 – ₹1000</span> (juniors only, see payment section above)</p>
+        <p class="text-sm mb-3" style="color:var(--)">💰 Registration fee: <span id="feeDisplay2" class="font-semibold" style="color:var(--txt)">₹900 – ₹1000</span> (juniors only, see payment section above)</p>
         <label class="text-sm font-medium block mb-1.5">Payment Transaction ID (if paid)</label>
         <input id="f_txn" type="text" placeholder="e.g. UPI Ref / Txn ID" class="w-full rounded-xl px-4 py-3">
       </div>
@@ -529,7 +529,7 @@ function renderQR(s){
   const el = document.getElementById('qrcode-canvas');
   if(!el) return;
   el.innerHTML = '';
-  const upiLink = `upi://pay?pa=${encodeURIComponent(s.upiId)}&pn=${encodeURIComponent(s.payeeName)}&cu=INR&tn=${encodeURIComponent('AI Fresher 2026 Registration')}`;
+  const upiLink = `upi://pay?pa=${encodeURIComponent(s.upiId)}{encodeURIComponent(s.payeeName)}${encodeURIComponent('AI Fresher 2026 Registration')}`;
   try{
     new QRCode(el, { text: upiLink, width: 160, height: 160, colorDark:'#000000', colorLight:'#ffffff', correctLevel: QRCode.CorrectLevel.M });
   }catch(e){ el.innerHTML = '<p class="text-xs text-black p-4">QR unavailable — pay directly to '+s.upiId+'</p>'; }
