@@ -409,8 +409,9 @@
       <h3 class="text-xl font-bold">Admin Login</h3>
       <p class="text-xs mt-1" style="color:var(--txt-dim)">Multiple admins can log in simultaneously</p>
     </div>
+    <input id="adminEmail" type="email" placeholder="Admin email" class="w-full rounded-xl px-4 py-3 mb-3" onkeydown="if(event.key==='Enter')document.getElementById('adminPass').focus()">
     <input id="adminPass" type="password" placeholder="Enter admin password" class="w-full rounded-xl px-4 py-3 mb-3" onkeydown="if(event.key==='Enter')adminLogin()">
-    <p id="adminError" class="hide text-red-400 text-xs mb-3">❌ Incorrect password. Try again.</p>
+    <p id="adminError" class="hide text-red-400 text-xs mb-3">❌ Invalid email or password.</p>
     <button onclick="adminLogin()" class="btn-primary w-full text-white font-semibold py-3 rounded-xl">Login to Dashboard</button>
   </div>
 </div>
@@ -421,7 +422,7 @@
     <div class="flex items-center justify-between mb-8 flex-wrap gap-4">
       <div>
         <h2 class="text-2xl sm:text-3xl font-bold flex items-center gap-2"><i data-lucide="layout-dashboard" style="color:var(--neon2)"></i>Admin Dashboard</h2>
-        <p class="text-xs" style="color:var(--txt-dim)">Session ID: <span id="sessionId"></span> • Manage AI Fresher 2026</p>
+        <p class="text-xs" style="color:var(--txt-dim)">Logged in as: <span id="sessionId"></span> • Manage AI Fresher 2026</p>
       </div>
       <div class="flex gap-2">
         <button onclick="refreshDashboard()" id="refreshBtn" class="btn-ghost px-4 py-2 rounded-full text-sm flex items-center gap-2"><i data-lucide="refresh-cw" class="w-4 h-4"></i>Refresh</button>
@@ -753,25 +754,37 @@ function showToast(msg){
 }
 
 /* ---------- ADMIN ---------- */
-const ADMIN_PASSWORD = 'CSEai2026';
-function openAdmin(){ document.getElementById('adminModal').classList.remove('hide'); lucide.createIcons(); }
-function closeAdmin(){ document.getElementById('adminModal').classList.add('hide'); document.getElementById('adminPass').value=''; document.getElementById('adminError').classList.add('hide'); }
-function adminLogin(){
-  const val=document.getElementById('adminPass').value;
-  if(val===ADMIN_PASSWORD){
-    // Each admin session gets its own sessionStorage token - allows multiple simultaneous admins across tabs/browsers
-    const sid = 'ADM-'+Math.random().toString(36).slice(2,8).toUpperCase();
-    sessionStorage.setItem('af26_admin_session', sid);
-    document.getElementById('sessionId').textContent = sid;
-    closeAdmin();
-    document.getElementById('adminDash').classList.remove('hide');
-    refreshDashboard();
-    lucide.createIcons();
-  } else {
-    document.getElementById('adminError').classList.remove('hide');
-  }
+/* Admin auth is handled by Supabase Auth (email/password) — see openAdmin/adminLogin below */
+async function openAdmin(){
+  if(!sb){ showToast('⚠️ Database not connected'); return; }
+  const { data:{ session } } = await sb.auth.getSession();
+  if(session){ showAdminDash(session.user.email); return; }
+  document.getElementById('adminModal').classList.remove('hide'); lucide.createIcons();
 }
-function closeAdminDash(){ sessionStorage.removeItem('af26_admin_session'); document.getElementById('adminDash').classList.add('hide'); }
+function closeAdmin(){ document.getElementById('adminModal').classList.add('hide'); document.getElementById('adminPass').value=''; document.getElementById('adminError').classList.add('hide'); }
+async function adminLogin(){
+  const email=document.getElementById('adminEmail').value.trim();
+  const pass=document.getElementById('adminPass').value;
+  if(!sb){ showToast('⚠️ Database not connected'); return; }
+  const { data, error } = await sb.auth.signInWithPassword({ email, password: pass });
+  if(error){
+    document.getElementById('adminError').textContent = '❌ '+error.message;
+    document.getElementById('adminError').classList.remove('hide');
+    return;
+  }
+  closeAdmin();
+  showAdminDash(data.user.email);
+}
+function showAdminDash(email){
+  document.getElementById('sessionId').textContent = email;
+  document.getElementById('adminDash').classList.remove('hide');
+  refreshDashboard();
+  lucide.createIcons();
+}
+async function closeAdminDash(){
+  if(sb) await sb.auth.signOut();
+  document.getElementById('adminDash').classList.add('hide');
+}
 
 let cachedRegs = [];
 async function refreshDashboard(){
