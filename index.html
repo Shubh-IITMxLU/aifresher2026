@@ -410,9 +410,54 @@
       <p class="text-xs mt-1" style="color:var(--txt-dim)">Multiple admins can log in simultaneously</p>
     </div>
     <input id="adminEmail" type="email" placeholder="Admin email" class="w-full rounded-xl px-4 py-3 mb-3" onkeydown="if(event.key==='Enter')document.getElementById('adminPass').focus()">
-    <input id="adminPass" type="password" placeholder="Enter admin password" class="w-full rounded-xl px-4 py-3 mb-3" onkeydown="if(event.key==='Enter')adminLogin()">
+    <input id="adminPass" type="password" placeholder="Enter admin password" class="w-full rounded-xl px-4 py-3 mb-1" onkeydown="if(event.key==='Enter')adminLogin()">
+    <button type="button" onclick="openForgotPassword()" class="text-xs underline mb-3 block ml-auto" style="color:var(--txt-dim)">Forgot password?</button>
     <p id="adminError" class="hide text-red-400 text-xs mb-3">❌ Invalid email or password.</p>
     <button onclick="adminLogin()" class="btn-primary w-full text-white font-semibold py-3 rounded-xl">Login to Dashboard</button>
+  </div>
+</div>
+
+<!-- ===================== FORGOT PASSWORD MODAL ===================== -->
+<div id="forgotModal" class="hide fixed inset-0 z-50 grid place-items-center p-4" style="background:rgba(0,0,0,.7)">
+  <div class="glass rounded-3xl w-full max-w-md p-8 relative">
+    <button onclick="closeForgotModal()" class="absolute top-4 right-4 opacity-60 hover:opacity-100"><i data-lucide="x" class="w-5 h-5"></i></button>
+    <div class="text-center mb-6">
+      <div class="w-12 h-12 mx-auto rounded-xl grid place-items-center mb-3" style="background:linear-gradient(135deg,var(--neon1),var(--neon3))"><i data-lucide="key-round" class="w-6 h-6 text-white"></i></div>
+      <h3 class="text-xl font-bold">Reset Password</h3>
+      <p class="text-xs mt-1" style="color:var(--txt-dim)">Enter your admin email — we'll send a reset link</p>
+    </div>
+    <input id="forgotEmail" type="email" placeholder="Admin email" class="w-full rounded-xl px-4 py-3 mb-3" onkeydown="if(event.key==='Enter')sendResetLink()">
+    <p id="forgotMsg" class="hide text-xs mb-3"></p>
+    <button onclick="sendResetLink()" class="btn-primary w-full text-white font-semibold py-3 rounded-xl">Send Reset Link</button>
+  </div>
+</div>
+
+<!-- ===================== SET NEW PASSWORD (after clicking email link) ===================== -->
+<div id="recoveryModal" class="hide fixed inset-0 z-50 grid place-items-center p-4" style="background:rgba(0,0,0,.7)">
+  <div class="glass rounded-3xl w-full max-w-md p-8 relative">
+    <div class="text-center mb-6">
+      <div class="w-12 h-12 mx-auto rounded-xl grid place-items-center mb-3" style="background:linear-gradient(135deg,var(--neon2),var(--neon1))"><i data-lucide="lock" class="w-6 h-6 text-white"></i></div>
+      <h3 class="text-xl font-bold">Set New Password</h3>
+      <p class="text-xs mt-1" style="color:var(--txt-dim)">Choose a new password for your admin account</p>
+    </div>
+    <input id="recoveryPass" type="password" placeholder="New password (min 6 characters)" class="w-full rounded-xl px-4 py-3 mb-3">
+    <p id="recoveryMsg" class="hide text-xs mb-3"></p>
+    <button onclick="submitNewPassword()" class="btn-primary w-full text-white font-semibold py-3 rounded-xl">Update Password</button>
+  </div>
+</div>
+
+<!-- ===================== CHANGE PASSWORD (while logged in) ===================== -->
+<div id="changePasswordModal" class="hide fixed inset-0 z-50 grid place-items-center p-4" style="background:rgba(0,0,0,.7)">
+  <div class="glass rounded-3xl w-full max-w-md p-8 relative">
+    <button onclick="closeChangePassword()" class="absolute top-4 right-4 opacity-60 hover:opacity-100"><i data-lucide="x" class="w-5 h-5"></i></button>
+    <div class="text-center mb-6">
+      <div class="w-12 h-12 mx-auto rounded-xl grid place-items-center mb-3" style="background:linear-gradient(135deg,var(--neon1),var(--neon2))"><i data-lucide="key-round" class="w-6 h-6 text-white"></i></div>
+      <h3 class="text-xl font-bold">Change Password</h3>
+    </div>
+    <input id="newPass1" type="password" placeholder="New password (min 6 characters)" class="w-full rounded-xl px-4 py-3 mb-3">
+    <input id="newPass2" type="password" placeholder="Confirm new password" class="w-full rounded-xl px-4 py-3 mb-3">
+    <p id="changePassMsg" class="hide text-xs mb-3"></p>
+    <button onclick="submitChangePassword()" class="btn-primary w-full text-white font-semibold py-3 rounded-xl">Update Password</button>
   </div>
 </div>
 
@@ -426,6 +471,7 @@
       </div>
       <div class="flex gap-2">
         <button onclick="refreshDashboard()" id="refreshBtn" class="btn-ghost px-4 py-2 rounded-full text-sm flex items-center gap-2"><i data-lucide="refresh-cw" class="w-4 h-4"></i>Refresh</button>
+        <button onclick="openChangePassword()" class="btn-ghost px-4 py-2 rounded-full text-sm flex items-center gap-2"><i data-lucide="key-round" class="w-4 h-4"></i>Change Password</button>
         <button onclick="exportCSV()" class="btn-ghost px-4 py-2 rounded-full text-sm flex items-center gap-2"><i data-lucide="download" class="w-4 h-4"></i>Export CSV</button>
         <button onclick="closeAdminDash()" class="btn-ghost px-4 py-2 rounded-full text-sm flex items-center gap-2"><i data-lucide="log-out" class="w-4 h-4"></i>Logout</button>
       </div>
@@ -631,6 +677,17 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 let sb = null;
 try{ sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY); }catch(e){ console.warn('Supabase client failed to init', e); }
 
+// If the user arrived here via a "reset password" email link, Supabase fires this event —
+// show the "Set New Password" modal instead of the normal login flow.
+if(sb){
+  sb.auth.onAuthStateChange((event)=>{
+    if(event === 'PASSWORD_RECOVERY'){
+      document.getElementById('recoveryModal').classList.remove('hide');
+      lucide.createIcons();
+    }
+  });
+}
+
 /* ---------- PAYMENT SCREENSHOT (compressed to a small base64 image before saving) ---------- */
 let paymentScreenshotBase64 = '';
 document.getElementById('f_screenshot').addEventListener('change', function(e){
@@ -762,6 +819,70 @@ async function openAdmin(){
   document.getElementById('adminModal').classList.remove('hide'); lucide.createIcons();
 }
 function closeAdmin(){ document.getElementById('adminModal').classList.add('hide'); document.getElementById('adminPass').value=''; document.getElementById('adminError').classList.add('hide'); }
+
+/* ---------- FORGOT PASSWORD ---------- */
+function openForgotPassword(){
+  closeAdmin();
+  document.getElementById('forgotModal').classList.remove('hide');
+  lucide.createIcons();
+}
+function closeForgotModal(){
+  document.getElementById('forgotModal').classList.add('hide');
+  document.getElementById('forgotEmail').value='';
+  document.getElementById('forgotMsg').classList.add('hide');
+}
+async function sendResetLink(){
+  const email = document.getElementById('forgotEmail').value.trim();
+  const msg = document.getElementById('forgotMsg');
+  if(!email){ showToast('⚠️ Enter your email'); return; }
+  if(!sb){ showToast('⚠️ Database not connected'); return; }
+  const redirectTo = window.location.origin + window.location.pathname;
+  const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo });
+  msg.classList.remove('hide');
+  if(error){ msg.style.color='#f87171'; msg.textContent='❌ '+error.message; }
+  else { msg.style.color='#34d399'; msg.textContent='✅ Reset link sent! Check your email inbox (and spam folder).'; }
+}
+
+/* ---------- RECOVERY FLOW (user clicked the emailed reset link) ---------- */
+async function submitNewPassword(){
+  const pass = document.getElementById('recoveryPass').value;
+  const msg = document.getElementById('recoveryMsg');
+  msg.classList.remove('hide');
+  if(pass.length < 6){ msg.style.color='#f87171'; msg.textContent='❌ Password must be at least 6 characters'; return; }
+  const { error } = await sb.auth.updateUser({ password: pass });
+  if(error){ msg.style.color='#f87171'; msg.textContent='❌ '+error.message; return; }
+  msg.style.color='#34d399'; msg.textContent='✅ Password updated! Redirecting to login...';
+  await sb.auth.signOut();
+  setTimeout(()=>{
+    document.getElementById('recoveryModal').classList.add('hide');
+    history.replaceState(null,'',window.location.pathname);
+    openAdmin();
+  }, 1800);
+}
+
+/* ---------- CHANGE PASSWORD (while already logged in) ---------- */
+function openChangePassword(){
+  document.getElementById('changePasswordModal').classList.remove('hide');
+  lucide.createIcons();
+}
+function closeChangePassword(){
+  document.getElementById('changePasswordModal').classList.add('hide');
+  document.getElementById('newPass1').value=''; document.getElementById('newPass2').value='';
+  document.getElementById('changePassMsg').classList.add('hide');
+}
+async function submitChangePassword(){
+  const p1 = document.getElementById('newPass1').value;
+  const p2 = document.getElementById('newPass2').value;
+  const msg = document.getElementById('changePassMsg');
+  msg.classList.remove('hide');
+  if(p1.length<6){ msg.style.color='#f87171'; msg.textContent='❌ Password must be at least 6 characters'; return; }
+  if(p1!==p2){ msg.style.color='#f87171'; msg.textContent='❌ Passwords do not match'; return; }
+  const { error } = await sb.auth.updateUser({ password: p1 });
+  if(error){ msg.style.color='#f87171'; msg.textContent='❌ '+error.message; return; }
+  msg.style.color='#34d399'; msg.textContent='✅ Password changed successfully';
+  setTimeout(closeChangePassword, 1500);
+}
+
 async function adminLogin(){
   const email=document.getElementById('adminEmail').value.trim();
   const pass=document.getElementById('adminPass').value;
