@@ -10,6 +10,8 @@
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/lucide@0.469.0/dist/umd/lucide.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <style>
   :root{
     --bg:#05050a; --bg2:#0a0a16; --card:#11111f; --card-border:#23233a;
@@ -371,11 +373,20 @@
     </button>
   </form>
 
-  <div id="successCard" class="hide glass rounded-3xl p-10 text-center reveal">
+  <div id="successCard" class="hide glass rounded-3xl p-8 sm:p-10 text-center reveal">
     <div class="w-16 h-16 mx-auto rounded-full grid place-items-center mb-4" style="background:color-mix(in srgb, #10b981 20%, transparent)"><i data-lucide="check-check" class="w-8 h-8 text-emerald-400"></i></div>
     <h3 class="text-2xl font-bold mb-2">You're All Set! 🎉</h3>
     <p style="color:var(--txt-dim)" class="mb-1">Thanks for registering for AI Fresher 2026.</p>
-    <p style="color:var(--txt-dim)" class="text-sm">An automated confirmation with your event pass & reminders will be emailed to you closer to the date (mock feature — hook up email service on backend).</p>
+
+    <div id="entryPassWrap" class="hide mt-6 mx-auto max-w-xs rounded-2xl p-6 text-left" style="background:linear-gradient(135deg, color-mix(in srgb, var(--neon1) 15%, var(--bg2)), color-mix(in srgb, var(--neon2) 15%, var(--bg2))); border:1px solid var(--card-border)">
+      <p class="font-display text-xs tracking-[0.2em] text-center mb-3" style="color:var(--neon2)">AI FRESHER 2026 • ENTRY PASS</p>
+      <div class="w-36 h-36 mx-auto rounded-xl bg-white p-2 mb-3"><div id="entryQrCanvas"></div></div>
+      <p id="passName" class="font-bold text-center"></p>
+      <p id="passRoll" class="text-xs text-center" style="color:var(--txt-dim)"></p>
+      <p class="text-[10px] text-center mt-2 tracking-widest" style="color:var(--txt-dim)">CODE: <span id="passCode" class="font-mono"></span></p>
+    </div>
+    <p class="text-xs mt-4" style="color:var(--txt-dim)">📸 Screenshot this pass — a senior will scan it at entry on the day of the event.</p>
+
     <button onclick="location.reload()" class="btn-ghost mt-6 px-6 py-2.5 rounded-full text-sm">Register Another Response</button>
   </div>
 </section>
@@ -484,6 +495,7 @@
     <!-- stat cards -->
     <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
       <div class="glass rounded-2xl p-5"><p class="text-xs" style="color:var(--txt-dim)">Total Attending</p><p id="stat-yes" class="text-3xl font-black mt-1" style="color:var(--neon2)">0</p></div>
+      <div class="glass rounded-2xl p-5"><p class="text-xs" style="color:var(--txt-dim)">Checked In</p><p id="stat-checkedin" class="text-3xl font-black mt-1" style="color:#34d399">0</p></div>
       <div class="glass rounded-2xl p-5"><p class="text-xs" style="color:var(--txt-dim)">Not Attending</p><p id="stat-no" class="text-3xl font-black mt-1" style="color:var(--neon3)">0</p></div>
       <div class="glass rounded-2xl p-5"><p class="text-xs" style="color:var(--txt-dim)">Total Collection</p><p id="stat-collection" class="text-3xl font-black mt-1" style="color:var(--gold)">₹0</p></div>
       <div class="glass rounded-2xl p-5"><p class="text-xs" style="color:var(--txt-dim)">Sections (AI1/AI2/AI3)</p><p id="stat-sections" class="text-lg font-bold mt-2">0 / 0 / 0</p></div>
@@ -526,6 +538,27 @@
         <p id="collectionsEmptyState" class="hide text-center py-6 text-sm" style="color:var(--txt-dim)">No collections yet.</p>
       </div>
     </div>
+
+    <!-- entry check-in scanner -->
+    <div class="glass rounded-2xl p-6 mb-8">
+      <p class="font-semibold mb-4 flex items-center gap-2"><i data-lucide="scan-line" class="w-4 h-4"></i>Entry Check-in Scanner</p>
+      <p class="text-xs mb-4" style="color:var(--txt-dim)">Use this on event day to check freshers in. Scan their entry pass QR with your phone camera, or type their 8-character code manually.</p>
+      <div class="grid md:grid-cols-2 gap-4">
+        <div>
+          <button id="scanToggleBtn" onclick="toggleScanner()" class="btn-primary text-white text-sm font-semibold px-5 py-2.5 rounded-full flex items-center gap-2 mb-3"><i data-lucide="camera" class="w-4 h-4"></i>Start Camera Scan</button>
+          <div id="qrReader" class="hide rounded-xl overflow-hidden" style="max-width:320px"></div>
+        </div>
+        <div>
+          <label class="text-xs block mb-1" style="color:var(--txt-dim)">Or enter code manually</label>
+          <div class="flex gap-2">
+            <input id="manualCode" type="text" placeholder="e.g. A1B2C3D4" class="rounded-lg px-3 py-2 text-sm flex-1 uppercase" onkeydown="if(event.key==='Enter')checkInByCode(document.getElementById('manualCode').value)">
+            <button onclick="checkInByCode(document.getElementById('manualCode').value)" class="btn-ghost px-4 py-2 rounded-lg text-sm">Check In</button>
+          </div>
+          <div id="checkinResult" class="hide mt-4 glass rounded-xl p-4"></div>
+        </div>
+      </div>
+    </div>
+
     <div class="flex flex-wrap gap-3 mb-4">
       <input id="searchBox" oninput="renderTable()" type="text" placeholder="🔍 Search by name or roll no..." class="rounded-lg px-4 py-2 text-sm flex-1 min-w-[200px]">
       <select id="filterSection" onchange="renderTable()" class="rounded-lg px-3 py-2 text-sm"><option value="">All Sections</option><option value="AI1">AI1</option><option value="AI2">AI2</option><option value="AI3">AI3</option></select>
@@ -849,7 +882,7 @@ async function fetchRegistrations(){
       const normalized = data.map(r=>({
         id: r.id, attending: r.attending, name: r.name||'', roll: r.roll||'', section: r.section||'',
         phone: r.phone||'', whatsapp: r.whatsapp||'', performances: r.performances? r.performances.split(',').map(s=>s.trim()).filter(Boolean) : [],
-        ideas: r.ideas||'', paymentScreenshot: r.payment_screenshot||'', collectedBy: r.collected_by||'', paymentVerified: !!r.payment_verified, submittedAt: r.submitted_at
+        ideas: r.ideas||'', paymentScreenshot: r.payment_screenshot||'', collectedBy: r.collected_by||'', paymentVerified: !!r.payment_verified, checkedIn: !!r.checked_in, submittedAt: r.submitted_at
       }));
       saveRegsLocal(normalized); // keep an offline mirror
       return normalized;
@@ -866,15 +899,72 @@ async function fetchRegistrations(){
 async function insertRegistration(entry){
   const local = loadRegsLocal(); local.push(entry); saveRegsLocal(local);
   if(sb){
-    const { error } = await sb.from('registrations').insert([{
+    const { data, error } = await sb.from('registrations').insert([{
       attending: entry.attending, name: entry.name, roll: entry.roll, section: entry.section,
       phone: entry.phone, whatsapp: entry.whatsapp, performances: entry.performances.join(', '),
       ideas: entry.ideas, payment_screenshot: entry.paymentScreenshot, collected_by: entry.collectedBy, payment_verified: false
-    }]);
-    if(error){ console.error('Supabase insert failed', error); return false; }
-    return true;
+    }]).select().single();
+    if(error){ console.error('Supabase insert failed', error); return null; }
+    return data.id; // real DB id — used as the entry pass code
   }
-  return false;
+  return entry.id; // offline fallback id
+}
+
+/* ---------- ENTRY CHECK-IN (QR scan or manual code) ---------- */
+let html5QrScanner = null;
+let scannerRunning = false;
+function toggleScanner(){
+  const btn = document.getElementById('scanToggleBtn');
+  const readerEl = document.getElementById('qrReader');
+  if(scannerRunning){
+    if(html5QrScanner){ html5QrScanner.stop().then(()=>{ html5QrScanner.clear(); }).catch(()=>{}); }
+    readerEl.classList.add('hide');
+    btn.innerHTML = '<i data-lucide="camera" class="w-4 h-4"></i>Start Camera Scan';
+    scannerRunning = false; lucide.createIcons();
+    return;
+  }
+  readerEl.classList.remove('hide');
+  btn.innerHTML = '<i data-lucide="camera-off" class="w-4 h-4"></i>Stop Camera Scan';
+  scannerRunning = true; lucide.createIcons();
+  try{
+    html5QrScanner = new Html5Qrcode('qrReader');
+    html5QrScanner.start({ facingMode:'environment' }, { fps:10, qrbox:220 },
+      (decodedText)=>{ checkInByCode(decodedText); },
+      ()=>{} // ignore per-frame scan misses
+    ).catch(err=>{ showToast('⚠️ Could not access camera — use manual code instead'); console.warn(err); });
+  }catch(e){ showToast('⚠️ Camera scanning unavailable on this device'); }
+}
+
+async function checkInByCode(rawCode){
+  const code = (rawCode||'').trim();
+  if(!code) return;
+  const resultEl = document.getElementById('checkinResult');
+  resultEl.classList.remove('hide');
+  // Match either the full DB uuid (from camera scan) or the short 8-char code (manual entry)
+  const match = cachedRegs.find(r=> r.id === code || (r.id && r.id.slice(0,8).toUpperCase() === code.toUpperCase()));
+  if(!match){
+    resultEl.innerHTML = `<p class="text-sm text-red-400">❌ No registration found for this code.</p>`;
+    return;
+  }
+  if(match.checkedIn){
+    resultEl.innerHTML = `<p class="text-sm" style="color:#f59e0b">⚠️ ${escapeHtml(match.name)} (${escapeHtml(match.roll)}) is already checked in.</p>`;
+    return;
+  }
+  resultEl.innerHTML = `<p class="text-sm font-semibold">${escapeHtml(match.name)} — ${escapeHtml(match.roll)} • ${escapeHtml(match.section)}</p><p class="text-xs mt-1" style="color:var(--txt-dim)">Confirm entry?</p>
+    <button onclick="confirmCheckIn('${match.id}')" class="btn-primary text-white text-xs font-semibold px-4 py-2 rounded-full mt-2">✅ Confirm Check-in</button>`;
+}
+
+async function confirmCheckIn(id){
+  if(sb){
+    const { error } = await sb.from('registrations').update({ checked_in: true }).eq('id', id);
+    if(error){ showToast('⚠️ Could not update — check connection'); return; }
+  }
+  const idx = cachedRegs.findIndex(r=>r.id===id);
+  if(idx>-1) cachedRegs[idx].checkedIn = true;
+  document.getElementById('manualCode').value = '';
+  document.getElementById('checkinResult').innerHTML = `<p class="text-sm text-emerald-400">✅ Checked in successfully!</p>`;
+  renderStats(); renderTable();
+  showToast('✅ Fresher checked in');
 }
 
 async function updatePaymentStatus(id, verified){
@@ -911,13 +1001,23 @@ document.getElementById('regForm').addEventListener('submit', async function(e){
 
   const submitBtn = this.querySelector('button[type="submit"]');
   submitBtn.disabled = true; submitBtn.style.opacity='0.6';
-  const ok = await insertRegistration(entry);
+  const dbId = await insertRegistration(entry);
   submitBtn.disabled = false; submitBtn.style.opacity='1';
 
   document.getElementById('regForm').classList.add('hide');
   document.getElementById('successCard').classList.remove('hide');
   document.getElementById('successCard').classList.add('show');
-  showToast(ok? '🎉 Registration submitted successfully!' : '🎉 Saved on this device — will sync once online');
+
+  if(attending && dbId){
+    document.getElementById('entryPassWrap').classList.remove('hide');
+    document.getElementById('passName').textContent = entry.name;
+    document.getElementById('passRoll').textContent = entry.roll + ' • ' + entry.section;
+    document.getElementById('passCode').textContent = dbId.slice(0,8).toUpperCase();
+    const qrEl = document.getElementById('entryQrCanvas');
+    qrEl.innerHTML = '';
+    try{ new QRCode(qrEl, { text: dbId, width: 128, height: 128, colorDark:'#000000', colorLight:'#ffffff' }); }catch(e){ console.warn('QR generation failed', e); }
+  }
+  showToast(dbId? '🎉 Registration submitted successfully!' : '🎉 Saved on this device — will sync once online');
 });
 
 /* ---------- TOAST ---------- */
@@ -1043,6 +1143,7 @@ function renderStats(){
   const feeNum = parseInt((settings.fee.match(/\d+/g)||[900]).pop()) || 0;
   const paidCount = yes.filter(r=>r.paymentScreenshot).length;
   document.getElementById('stat-yes').textContent = yes.length;
+  document.getElementById('stat-checkedin').textContent = yes.filter(r=>r.checkedIn).length;
   document.getElementById('stat-no').textContent = no.length;
   document.getElementById('stat-collection').textContent = '₹'+(paidCount*feeNum).toLocaleString('en-IN');
   const c = {AI1:0,AI2:0,AI3:0};
