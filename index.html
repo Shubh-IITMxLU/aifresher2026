@@ -410,10 +410,30 @@
     <div>
       <p class="font-semibold mb-3 text-sm uppercase tracking-wide" style="color:var(--txt-dim)">Connect</p>
       <a href="https://www.instagram.com/ai_fresher_2026?stkn=MTJ4YnlobG03Y200NA==" target="_blank" class="btn-ghost inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm"><i data-lucide="instagram" class="w-4 h-4"></i>@ai_fresher_2026</a>
+      <button onclick="openMyData()" class="btn-ghost inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm mt-2"><i data-lucide="shield-check" class="w-4 h-4"></i>Mera Data Dekhein / Delete Karein</button>
     </div>
   </div>
   <p class="text-center text-xs pb-8" style="color:var(--txt-dim)">© 2026 AI Fresher • CSE (AI) University of Lucknow. Made with 💜 by your seniors.</p>
 </footer>
+
+<!-- ===================== MY DATA (self-service view/delete) ===================== -->
+<div id="myDataModal" class="hide fixed inset-0 z-50 grid place-items-center p-4" style="background:rgba(0,0,0,.7)">
+  <div class="glass rounded-3xl w-full max-w-lg p-8 relative max-h-[90vh] overflow-y-auto">
+    <button onclick="closeMyData()" class="absolute top-4 right-4 opacity-60 hover:opacity-100"><i data-lucide="x" class="w-5 h-5"></i></button>
+    <div class="text-center mb-6">
+      <div class="w-12 h-12 mx-auto rounded-xl grid place-items-center mb-3" style="background:linear-gradient(135deg,var(--neon1),var(--neon2))"><i data-lucide="shield-check" class="w-6 h-6 text-white"></i></div>
+      <h3 class="text-xl font-bold">Mera Data</h3>
+      <p class="text-xs mt-1" style="color:var(--txt-dim)">Apna Roll No aur Phone Number dalke dekho hum aapke baare mein kya store karte hain — aur chahen to delete bhi kar sakte hain.</p>
+    </div>
+    <div id="myDataForm">
+      <input id="md_roll" type="text" placeholder="Roll Number" class="w-full rounded-xl px-4 py-3 mb-3">
+      <input id="md_phone" type="tel" placeholder="Phone Number" class="w-full rounded-xl px-4 py-3 mb-3">
+      <button onclick="lookupMyData()" class="btn-primary w-full text-white font-semibold py-3 rounded-xl">Mera Data Dhoondo</button>
+      <p id="myDataMsg" class="hide text-xs mt-3"></p>
+    </div>
+    <div id="myDataResult" class="hide mt-4"></div>
+  </div>
+</div>
 
 <!-- ===================== ADMIN MODAL ===================== -->
 <div id="adminModal" class="hide fixed inset-0 z-50 grid place-items-center p-4" style="background:rgba(0,0,0,.7)">
@@ -570,7 +590,7 @@
     <div class="glass rounded-2xl overflow-x-auto">
       <table class="w-full text-sm">
         <thead><tr class="text-left" style="color:var(--txt-dim); border-bottom:1px solid var(--card-border)">
-          <th class="p-3">Name</th><th class="p-3">Roll No</th><th class="p-3">Section</th><th class="p-3">Attending</th><th class="p-3">Phone</th><th class="p-3">Performances</th><th class="p-3">Suggestions</th><th class="p-3">Paid To</th><th class="p-3">Payment Proof</th><th class="p-3">Payment</th>
+          <th class="p-3">Name</th><th class="p-3">Roll No</th><th class="p-3">Section</th><th class="p-3">Attending</th><th class="p-3">Phone</th><th class="p-3">Performances</th><th class="p-3">Suggestions</th><th class="p-3">Paid To</th><th class="p-3">Payment Proof</th><th class="p-3">Payment</th><th class="p-3">Deletion</th>
         </tr></thead>
         <tbody id="tableBody"></tbody>
       </table>
@@ -882,7 +902,7 @@ async function fetchRegistrations(){
       const normalized = data.map(r=>({
         id: r.id, attending: r.attending, name: r.name||'', roll: r.roll||'', section: r.section||'',
         phone: r.phone||'', whatsapp: r.whatsapp||'', performances: r.performances? r.performances.split(',').map(s=>s.trim()).filter(Boolean) : [],
-        ideas: r.ideas||'', paymentScreenshot: r.payment_screenshot||'', collectedBy: r.collected_by||'', paymentVerified: !!r.payment_verified, checkedIn: !!r.checked_in, submittedAt: r.submitted_at
+        ideas: r.ideas||'', paymentScreenshot: r.payment_screenshot||'', collectedBy: r.collected_by||'', paymentVerified: !!r.payment_verified, checkedIn: !!r.checked_in, deletionRequested: !!r.deletion_requested, submittedAt: r.submitted_at
       }));
       saveRegsLocal(normalized); // keep an offline mirror
       return normalized;
@@ -965,6 +985,59 @@ async function confirmCheckIn(id){
   document.getElementById('checkinResult').innerHTML = `<p class="text-sm text-emerald-400">✅ Checked in successfully!</p>`;
   renderStats(); renderTable();
   showToast('✅ Fresher checked in');
+}
+
+/* ---------- MY DATA (self-service view/delete via secure RPC — RLS-safe) ---------- */
+function openMyData(){
+  document.getElementById('myDataModal').classList.remove('hide');
+  document.getElementById('myDataForm').classList.remove('hide');
+  document.getElementById('myDataResult').classList.add('hide');
+  document.getElementById('myDataMsg').classList.add('hide');
+  lucide.createIcons();
+}
+function closeMyData(){
+  document.getElementById('myDataModal').classList.add('hide');
+  document.getElementById('md_roll').value=''; document.getElementById('md_phone').value='';
+}
+async function lookupMyData(){
+  const roll = document.getElementById('md_roll').value.trim();
+  const phone = document.getElementById('md_phone').value.trim();
+  const msg = document.getElementById('myDataMsg');
+  msg.classList.remove('hide');
+  if(!roll || !phone){ msg.style.color='#f87171'; msg.textContent='❌ Roll number aur phone dono bharo'; return; }
+  if(!sb){ msg.style.color='#f87171'; msg.textContent='❌ Database not connected'; return; }
+  const { data, error } = await sb.rpc('get_my_registration', { p_roll: roll, p_phone: phone });
+  if(error){ msg.style.color='#f87171'; msg.textContent='❌ '+error.message; return; }
+  if(!data || !data.length){ msg.style.color='#f87171'; msg.textContent='❌ Koi registration nahi mili is Roll No + Phone se'; return; }
+  msg.classList.add('hide');
+  const r = data[0];
+  document.getElementById('myDataForm').classList.add('hide');
+  const wrap = document.getElementById('myDataResult');
+  wrap.classList.remove('hide');
+  wrap.innerHTML = `
+    <div class="rounded-xl p-4 space-y-2 text-sm" style="background:var(--bg2)">
+      <p><span style="color:var(--txt-dim)">Name:</span> ${escapeHtml(r.name)}</p>
+      <p><span style="color:var(--txt-dim)">Roll No:</span> ${escapeHtml(r.roll)}</p>
+      <p><span style="color:var(--txt-dim)">Section:</span> ${escapeHtml(r.section)}</p>
+      <p><span style="color:var(--txt-dim)">Phone:</span> ${escapeHtml(r.phone)}</p>
+      <p><span style="color:var(--txt-dim)">WhatsApp:</span> ${escapeHtml(r.whatsapp)}</p>
+      <p><span style="color:var(--txt-dim)">Performances:</span> ${escapeHtml(r.performances)||'—'}</p>
+      <p><span style="color:var(--txt-dim)">Ideas Submitted:</span> ${escapeHtml(r.ideas)||'—'}</p>
+      <p><span style="color:var(--txt-dim)">Paid To:</span> ${escapeHtml(r.collected_by)||'—'}</p>
+      <p><span style="color:var(--txt-dim)">Payment Verified:</span> ${r.payment_verified?'✅ Yes':'⏳ Pending'}</p>
+      <p><span style="color:var(--txt-dim)">Checked In:</span> ${r.checked_in?'✅ Yes':'Not yet'}</p>
+      ${r.deletion_requested? `<p class="text-amber-400 text-xs">⏳ Delete request already sent — pending admin review</p>` : ''}
+    </div>
+    <p class="text-xs mt-3" style="color:var(--txt-dim)">Ye bas wahi data hai jo humare paas tumhare baare mein hai. Agar apna data delete karwana chahte ho, request bhej sakte ho — event coordination aur payment records ke liye ye event khatam hone tak safe rakha jaata hai, uske baad admin review karke delete karenge.</p>
+    ${r.deletion_requested? '' : `<button onclick="confirmDeleteMyData('${roll.replace(/'/g,"\\'")}','${phone.replace(/'/g,"\\'")}')" class="btn-ghost w-full mt-3 py-2.5 rounded-xl text-sm font-semibold text-amber-400">🗑️ Data Delete Karne Ki Request Bhejo</button>`}
+    <button onclick="closeMyData()" class="btn-ghost w-full mt-2 py-2.5 rounded-xl text-sm">Band Karo</button>`;
+}
+async function confirmDeleteMyData(roll, phone){
+  if(!confirm('Delete request bhejni hai? Tumhara data event khatam hone tak record ke liye rakha jaayega, uske baad admin isse review karke delete karega.')) return;
+  const { error } = await sb.rpc('request_data_deletion', { p_roll: roll, p_phone: phone });
+  if(error){ showToast('⚠️ '+error.message); return; }
+  document.getElementById('myDataResult').innerHTML = `<p class="text-sm text-emerald-400 text-center py-6">✅ Request bhej di gayi — admin isse review karega.</p><button onclick="closeMyData()" class="btn-ghost w-full mt-2 py-2.5 rounded-xl text-sm">Band Karo</button>`;
+  showToast('✅ Deletion request sent');
 }
 
 async function updatePaymentStatus(id, verified){
@@ -1126,6 +1199,12 @@ async function closeAdminDash(){
 }
 
 let cachedRegs = [];
+let revealedPhones = new Set();
+function maskPhone(p){ if(!p || p.length<4) return p||''; return p.slice(0,2)+'XXXXXX'+p.slice(-2); }
+function togglePhoneReveal(id){
+  if(revealedPhones.has(id)) revealedPhones.delete(id); else revealedPhones.add(id);
+  renderTable();
+}
 async function refreshDashboard(){
   const btn = document.getElementById('refreshBtn');
   if(btn){ btn.disabled=true; btn.style.opacity='0.6'; }
@@ -1170,13 +1249,15 @@ function renderTable(){
       <td class="p-3">${escapeHtml(r.roll)}</td>
       <td class="p-3"><span class="px-2 py-0.5 rounded-full text-xs" style="background:color-mix(in srgb, var(--neon1) 20%, transparent)">${r.section}</span></td>
       <td class="p-3">✅ Yes</td>
-      <td class="p-3">${escapeHtml(r.phone)}</td>
+      <td class="p-3 cursor-pointer select-none" onclick="togglePhoneReveal('${r.id}')" title="Click to reveal/hide">${revealedPhones.has(r.id)? escapeHtml(r.phone) : maskPhone(r.phone)} <i data-lucide="eye" class="w-3 h-3 inline opacity-50"></i></td>
       <td class="p-3">${r.performances.map(p=>`<span class="text-xs px-1.5 py-0.5 rounded mr-1" style="background:var(--bg2)">${p}</span>`).join('')||'—'}</td>
       <td class="p-3 max-w-[160px] truncate" title="${escapeHtml(r.ideas)}">${escapeHtml(r.ideas)||'—'}</td>
       <td class="p-3">${escapeHtml(r.collectedBy)||'—'}</td>
       <td class="p-3">${r.paymentScreenshot? `<a href="${r.paymentScreenshot}" target="_blank"><img src="${r.paymentScreenshot}" class="h-12 w-12 object-cover rounded-lg border" style="border-color:var(--card-border)"></a>` : '—'}</td>
       <td class="p-3"><button onclick="togglePaid('${r.id}')" class="px-2 py-1 rounded-full text-xs font-semibold" style="background:${r.paymentVerified?'color-mix(in srgb, #10b981 25%, transparent)':'color-mix(in srgb, #f59e0b 25%, transparent)'}">${r.paymentVerified?'✅ Verified':'⏳ Pending'}</button></td>
+      <td class="p-3">${r.deletionRequested? '<span class="text-xs px-2 py-0.5 rounded-full text-amber-400" style="background:color-mix(in srgb, #f59e0b 20%, transparent)">⚠️ Requested</span>' : '—'}</td>
     </tr>`).join('');
+  lucide.createIcons();
 }
 async function togglePaid(id){
   const idx = cachedRegs.findIndex(r=>r.id===id);
@@ -1192,8 +1273,8 @@ function escapeHtml(str){ return (str||'').toString().replace(/[&<>"']/g, m=>({'
 function exportCSV(){
   const regs = cachedRegs.filter(r=>r.attending===true);
   if(!regs.length){ showToast('⚠️ No data to export'); return; }
-  const headers = ['Name','Roll No','Section','Phone','WhatsApp','Performances','Ideas/Suggestions','Screenshot Uploaded','Payment Verified','Submitted At'];
-  const rows = regs.map(r=>[r.name,r.roll,r.section,r.phone,r.whatsapp,r.performances.join('; '),r.ideas,r.paymentScreenshot?'Yes':'No',r.paymentVerified?'Yes':'No',r.submittedAt]);
+  const headers = ['Name','Roll No','Section','Phone','WhatsApp','Performances','Ideas/Suggestions','Screenshot Uploaded','Payment Verified','Deletion Requested','Submitted At'];
+  const rows = regs.map(r=>[r.name,r.roll,r.section,r.phone,r.whatsapp,r.performances.join('; '),r.ideas,r.paymentScreenshot?'Yes':'No',r.paymentVerified?'Yes':'No',r.deletionRequested?'Yes':'No',r.submittedAt]);
   const csv = [headers, ...rows].map(row=>row.map(v=>`"${(v||'').toString().replace(/"/g,'""')}"`).join(',')).join('\n');
   const blob = new Blob([csv],{type:'text/csv'});
   const url = URL.createObjectURL(blob);
