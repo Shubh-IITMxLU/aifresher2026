@@ -919,13 +919,13 @@ async function fetchRegistrations(){
 async function insertRegistration(entry){
   const local = loadRegsLocal(); local.push(entry); saveRegsLocal(local);
   if(sb){
-    const { data, error } = await sb.from('registrations').insert([{
-      attending: entry.attending, name: entry.name, roll: entry.roll, section: entry.section,
-      phone: entry.phone, whatsapp: entry.whatsapp, performances: entry.performances.join(', '),
-      ideas: entry.ideas, payment_screenshot: entry.paymentScreenshot, collected_by: entry.collectedBy, payment_verified: false
-    }]).select().single();
+    const { data, error } = await sb.rpc('submit_registration', {
+      p_attending: entry.attending, p_name: entry.name, p_roll: entry.roll, p_section: entry.section,
+      p_phone: entry.phone, p_whatsapp: entry.whatsapp, p_performances: entry.performances.join(', '),
+      p_ideas: entry.ideas, p_payment_screenshot: entry.paymentScreenshot, p_collected_by: entry.collectedBy
+    });
     if(error){ console.error('Supabase insert failed', error); return null; }
-    return data.id; // real DB id — used as the entry pass code
+    return data; // the function returns the new row's id directly
   }
   return entry.id; // offline fallback id
 }
