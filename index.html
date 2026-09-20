@@ -924,10 +924,10 @@ async function insertRegistration(entry){
       p_phone: entry.phone, p_whatsapp: entry.whatsapp, p_performances: entry.performances.join(', '),
       p_ideas: entry.ideas, p_payment_screenshot: entry.paymentScreenshot, p_collected_by: entry.collectedBy
     });
-    if(error){ console.error('Supabase insert failed', error); return null; }
-    return data; // the function returns the new row's id directly
+    if(error){ console.error('Supabase insert failed', error); return { id: null, errorMsg: error.message }; }
+    return { id: data, errorMsg: null }; // the function returns the new row's id directly
   }
-  return entry.id; // offline fallback id
+  return { id: entry.id, errorMsg: 'offline' };
 }
 
 /* ---------- ENTRY CHECK-IN (QR scan or manual code) ---------- */
@@ -1074,23 +1074,27 @@ document.getElementById('regForm').addEventListener('submit', async function(e){
 
   const submitBtn = this.querySelector('button[type="submit"]');
   submitBtn.disabled = true; submitBtn.style.opacity='0.6';
-  const dbId = await insertRegistration(entry);
+  const result = await insertRegistration(entry);
   submitBtn.disabled = false; submitBtn.style.opacity='1';
 
   document.getElementById('regForm').classList.add('hide');
   document.getElementById('successCard').classList.remove('hide');
   document.getElementById('successCard').classList.add('show');
 
-  if(attending && dbId){
+  if(attending && result.id){
     document.getElementById('entryPassWrap').classList.remove('hide');
     document.getElementById('passName').textContent = entry.name;
     document.getElementById('passRoll').textContent = entry.roll + ' • ' + entry.section;
-    document.getElementById('passCode').textContent = dbId.slice(0,8).toUpperCase();
+    document.getElementById('passCode').textContent = String(result.id).slice(0,8).toUpperCase();
     const qrEl = document.getElementById('entryQrCanvas');
     qrEl.innerHTML = '';
-    try{ new QRCode(qrEl, { text: dbId, width: 128, height: 128, colorDark:'#000000', colorLight:'#ffffff' }); }catch(e){ console.warn('QR generation failed', e); }
+    try{ new QRCode(qrEl, { text: String(result.id), width: 128, height: 128, colorDark:'#000000', colorLight:'#ffffff' }); }catch(e){ console.warn('QR generation failed', e); }
   }
-  showToast(dbId? '🎉 Registration submitted successfully!' : '🎉 Saved on this device — will sync once online');
+  if(result.errorMsg && result.errorMsg !== 'offline'){
+    showToast('⚠️ Save failed: '+result.errorMsg);
+  } else {
+    showToast(result.id? '🎉 Registration submitted successfully!' : '🎉 Saved on this device — will sync once online');
+  }
 });
 
 /* ---------- TOAST ---------- */
