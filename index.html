@@ -352,6 +352,10 @@
 
       <div class="pt-4 border-t" style="border-color:var(--card-border)">
         <p class="text-sm mb-3" style="color:var(--txt-dim)">💰 Registration fee: <span id="feeDisplay2" class="font-semibold" style="color:var(--txt)">₹900 – ₹1000</span> (juniors only) — pay any senior via UPI, then upload proof below</p>
+        <label class="text-sm font-medium block mb-1.5">Paid To (Senior's Name) *</label>
+        <select id="f_collectedBy" class="w-full rounded-xl px-4 py-3 mb-4">
+          <option value="">Select the senior you paid</option>
+        </select>
         <label class="text-sm font-medium block mb-1.5">Upload Payment Screenshot</label>
         <input id="f_screenshot" type="file" accept="image/*" class="w-full rounded-xl px-4 py-3 text-sm">
         <div id="screenshotPreviewWrap" class="hide mt-3">
@@ -497,7 +501,31 @@
       <button onclick="saveSettings()" class="btn-primary text-white text-sm font-semibold px-6 py-2.5 rounded-full mt-4">Save Changes</button>
     </div>
 
-    <!-- filters -->
+    <!-- seniors management -->
+    <div class="glass rounded-2xl p-6 mb-8">
+      <p class="font-semibold mb-4 flex items-center gap-2"><i data-lucide="users" class="w-4 h-4"></i>Manage Seniors (Payment Collectors)</p>
+      <p class="text-xs mb-4" style="color:var(--txt-dim)">Add every senior who will be collecting payments. They'll appear in the fresher's registration form as a "Paid To" option, and their ID card is stored here for your own verification record (never shown publicly).</p>
+      <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+        <input id="sr_name" type="text" placeholder="Senior's full name *" class="rounded-lg px-3 py-2 text-sm">
+        <input id="sr_roll" type="text" placeholder="Roll No (optional)" class="rounded-lg px-3 py-2 text-sm">
+        <input id="sr_phone" type="tel" placeholder="Phone (optional)" class="rounded-lg px-3 py-2 text-sm">
+        <input id="sr_idcard" type="file" accept="image/*" class="rounded-lg px-3 py-2 text-sm">
+      </div>
+      <button onclick="addSenior()" class="btn-primary text-white text-sm font-semibold px-6 py-2.5 rounded-full flex items-center gap-2 w-fit"><i data-lucide="user-plus" class="w-4 h-4"></i>Add Senior</button>
+      <div id="seniorsList" class="mt-5 grid sm:grid-cols-2 lg:grid-cols-3 gap-3"></div>
+    </div>
+
+    <!-- collections by senior -->
+    <div class="glass rounded-2xl p-6 mb-8">
+      <p class="font-semibold mb-4 flex items-center gap-2"><i data-lucide="wallet" class="w-4 h-4"></i>Collections by Senior</p>
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead><tr class="text-left" style="color:var(--txt-dim); border-bottom:1px solid var(--card-border)"><th class="p-2">Senior</th><th class="p-2">Registrations</th><th class="p-2">Amount Collected</th></tr></thead>
+          <tbody id="collectionsBySeniorBody"></tbody>
+        </table>
+        <p id="collectionsEmptyState" class="hide text-center py-6 text-sm" style="color:var(--txt-dim)">No collections yet.</p>
+      </div>
+    </div>
     <div class="flex flex-wrap gap-3 mb-4">
       <input id="searchBox" oninput="renderTable()" type="text" placeholder="🔍 Search by name or roll no..." class="rounded-lg px-4 py-2 text-sm flex-1 min-w-[200px]">
       <select id="filterSection" onchange="renderTable()" class="rounded-lg px-3 py-2 text-sm"><option value="">All Sections</option><option value="AI1">AI1</option><option value="AI2">AI2</option><option value="AI3">AI3</option></select>
@@ -509,7 +537,7 @@
     <div class="glass rounded-2xl overflow-x-auto">
       <table class="w-full text-sm">
         <thead><tr class="text-left" style="color:var(--txt-dim); border-bottom:1px solid var(--card-border)">
-          <th class="p-3">Name</th><th class="p-3">Roll No</th><th class="p-3">Section</th><th class="p-3">Attending</th><th class="p-3">Phone</th><th class="p-3">Performances</th><th class="p-3">Suggestions</th><th class="p-3">Payment Proof</th><th class="p-3">Payment</th>
+          <th class="p-3">Name</th><th class="p-3">Roll No</th><th class="p-3">Section</th><th class="p-3">Attending</th><th class="p-3">Phone</th><th class="p-3">Performances</th><th class="p-3">Suggestions</th><th class="p-3">Paid To</th><th class="p-3">Payment Proof</th><th class="p-3">Payment</th>
         </tr></thead>
         <tbody id="tableBody"></tbody>
       </table>
@@ -687,6 +715,7 @@ if(sb){
     }
   });
 }
+populateSeniorDropdown();
 
 /* ---------- PAYMENT SCREENSHOT (compressed to a small base64 image before saving) ---------- */
 let paymentScreenshotBase64 = '';
@@ -719,6 +748,94 @@ function clearScreenshot(){
   document.getElementById('screenshotPreviewWrap').classList.add('hide');
 }
 
+/* ---------- SENIORS (payment collectors) ---------- */
+// senior_names: public table, anon can read only — used to populate the fresher's "Paid To" dropdown
+// seniors: full record with ID card, authenticated (admin) only — for internal verification, never public
+async function populateSeniorDropdown(){
+  const select = document.getElementById('f_collectedBy');
+  if(!sb || !select) return;
+  try{
+    const { data, error } = await sb.from('senior_names').select('name').order('name');
+    if(error) throw error;
+    select.innerHTML = '<option value="">Select the senior you paid</option>' + data.map(s=>`<option value="${escapeHtml(s.name)}">${escapeHtml(s.name)}</option>`).join('');
+  }catch(e){ console.warn('Could not load seniors list', e); }
+}
+
+let seniorScreenshotBase64 = '';
+document.getElementById('sr_idcard') && document.getElementById('sr_idcard').addEventListener('change', function(e){
+  const file = e.target.files[0];
+  if(!file){ return; }
+  const reader = new FileReader();
+  reader.onload = function(ev){
+    const img = new Image();
+    img.onload = function(){
+      const maxW = 700;
+      const scale = Math.min(1, maxW / img.width);
+      const canvas = document.createElement('canvas');
+      canvas.width = img.width * scale; canvas.height = img.height * scale;
+      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+      seniorScreenshotBase64 = canvas.toDataURL('image/jpeg', 0.6);
+    };
+    img.src = ev.target.result;
+  };
+  reader.readAsDataURL(file);
+});
+
+async function addSenior(){
+  const name = document.getElementById('sr_name').value.trim();
+  const roll = document.getElementById('sr_roll').value.trim();
+  const phone = document.getElementById('sr_phone').value.trim();
+  if(!name){ showToast('⚠️ Senior name is required'); return; }
+  if(!sb){ showToast('⚠️ Database not connected'); return; }
+  const { data: seniorRow, error: e1 } = await sb.from('seniors').insert([{ name, roll, phone, id_card: seniorScreenshotBase64 }]).select().single();
+  if(e1){ showToast('⚠️ '+e1.message); return; }
+  const { error: e2 } = await sb.from('senior_names').insert([{ id: seniorRow.id, name }]);
+  if(e2){ showToast('⚠️ '+e2.message); return; }
+  document.getElementById('sr_name').value=''; document.getElementById('sr_roll').value=''; document.getElementById('sr_phone').value='';
+  document.getElementById('sr_idcard').value=''; seniorScreenshotBase64='';
+  showToast('✅ Senior added');
+  loadSeniorsList(); populateSeniorDropdown();
+}
+
+async function loadSeniorsList(){
+  if(!sb) return;
+  const wrap = document.getElementById('seniorsList');
+  try{
+    const { data, error } = await sb.from('seniors').select('*').order('name');
+    if(error) throw error;
+    wrap.innerHTML = data.map(s=>`
+      <div class="glass rounded-xl p-4 flex items-center gap-3">
+        ${s.id_card? `<a href="${s.id_card}" target="_blank"><img src="${s.id_card}" class="w-12 h-12 rounded-lg object-cover border" style="border-color:var(--card-border)"></a>` : `<div class="w-12 h-12 rounded-lg grid place-items-center" style="background:var(--bg2)"><i data-lucide="user" class="w-5 h-5" style="color:var(--txt-dim)"></i></div>`}
+        <div class="min-w-0">
+          <p class="font-medium text-sm truncate">${escapeHtml(s.name)}</p>
+          <p class="text-xs truncate" style="color:var(--txt-dim)">${escapeHtml(s.roll)||''} ${s.phone? '• '+escapeHtml(s.phone):''}</p>
+        </div>
+      </div>`).join('') || `<p class="text-sm col-span-full" style="color:var(--txt-dim)">No seniors added yet.</p>`;
+    lucide.createIcons();
+  }catch(e){ console.warn('Could not load seniors', e); }
+}
+
+function renderCollectionsBySenior(){
+  const settings = getSettings();
+  const feeNum = parseInt((settings.fee.match(/\d+/g)||[900]).pop()) || 0;
+  const yes = cachedRegs.filter(r=>r.attending===true && r.collectedBy);
+  const groups = {};
+  yes.forEach(r=>{
+    if(!groups[r.collectedBy]) groups[r.collectedBy] = { count:0, paid:0 };
+    groups[r.collectedBy].count++;
+    if(r.paymentScreenshot) groups[r.collectedBy].paid++;
+  });
+  const rows = Object.entries(groups).sort((a,b)=>b[1].paid-a[1].paid);
+  const tbody = document.getElementById('collectionsBySeniorBody');
+  document.getElementById('collectionsEmptyState').classList.toggle('hide', rows.length>0);
+  tbody.innerHTML = rows.map(([name, g])=>`
+    <tr style="border-bottom:1px solid var(--card-border)">
+      <td class="p-2 font-medium">${escapeHtml(name)}</td>
+      <td class="p-2">${g.count}</td>
+      <td class="p-2">₹${(g.paid*feeNum).toLocaleString('en-IN')}</td>
+    </tr>`).join('');
+}
+
 function loadRegsLocal(){ try{ return JSON.parse(localStorage.getItem('af26_registrations')||'[]'); }catch(e){ return []; } }
 function saveRegsLocal(regs){ localStorage.setItem('af26_registrations', JSON.stringify(regs)); }
 
@@ -732,7 +849,7 @@ async function fetchRegistrations(){
       const normalized = data.map(r=>({
         id: r.id, attending: r.attending, name: r.name||'', roll: r.roll||'', section: r.section||'',
         phone: r.phone||'', whatsapp: r.whatsapp||'', performances: r.performances? r.performances.split(',').map(s=>s.trim()).filter(Boolean) : [],
-        ideas: r.ideas||'', paymentScreenshot: r.payment_screenshot||'', paymentVerified: !!r.payment_verified, submittedAt: r.submitted_at
+        ideas: r.ideas||'', paymentScreenshot: r.payment_screenshot||'', collectedBy: r.collected_by||'', paymentVerified: !!r.payment_verified, submittedAt: r.submitted_at
       }));
       saveRegsLocal(normalized); // keep an offline mirror
       return normalized;
@@ -752,7 +869,7 @@ async function insertRegistration(entry){
     const { error } = await sb.from('registrations').insert([{
       attending: entry.attending, name: entry.name, roll: entry.roll, section: entry.section,
       phone: entry.phone, whatsapp: entry.whatsapp, performances: entry.performances.join(', '),
-      ideas: entry.ideas, payment_screenshot: entry.paymentScreenshot, payment_verified: false
+      ideas: entry.ideas, payment_screenshot: entry.paymentScreenshot, collected_by: entry.collectedBy, payment_verified: false
     }]);
     if(error){ console.error('Supabase insert failed', error); return false; }
     return true;
@@ -783,6 +900,7 @@ document.getElementById('regForm').addEventListener('submit', async function(e){
     performances: attending? [...selectedPerf] : [],
     ideas: attending? document.getElementById('f_ideas').value.trim() : '',
     paymentScreenshot: attending? paymentScreenshotBase64 : '',
+    collectedBy: attending? document.getElementById('f_collectedBy').value : '',
     paymentVerified: false,
     submittedAt: new Date().toISOString()
   };
@@ -912,7 +1030,8 @@ async function refreshDashboard(){
   const btn = document.getElementById('refreshBtn');
   if(btn){ btn.disabled=true; btn.style.opacity='0.6'; }
   cachedRegs = await fetchRegistrations();
-  renderStats(); renderTable();
+  renderStats(); renderTable(); renderCollectionsBySenior();
+  loadSeniorsList();
   if(btn){ btn.disabled=false; btn.style.opacity='1'; }
 }
 
@@ -953,6 +1072,7 @@ function renderTable(){
       <td class="p-3">${escapeHtml(r.phone)}</td>
       <td class="p-3">${r.performances.map(p=>`<span class="text-xs px-1.5 py-0.5 rounded mr-1" style="background:var(--bg2)">${p}</span>`).join('')||'—'}</td>
       <td class="p-3 max-w-[160px] truncate" title="${escapeHtml(r.ideas)}">${escapeHtml(r.ideas)||'—'}</td>
+      <td class="p-3">${escapeHtml(r.collectedBy)||'—'}</td>
       <td class="p-3">${r.paymentScreenshot? `<a href="${r.paymentScreenshot}" target="_blank"><img src="${r.paymentScreenshot}" class="h-12 w-12 object-cover rounded-lg border" style="border-color:var(--card-border)"></a>` : '—'}</td>
       <td class="p-3"><button onclick="togglePaid('${r.id}')" class="px-2 py-1 rounded-full text-xs font-semibold" style="background:${r.paymentVerified?'color-mix(in srgb, #10b981 25%, transparent)':'color-mix(in srgb, #f59e0b 25%, transparent)'}">${r.paymentVerified?'✅ Verified':'⏳ Pending'}</button></td>
     </tr>`).join('');
